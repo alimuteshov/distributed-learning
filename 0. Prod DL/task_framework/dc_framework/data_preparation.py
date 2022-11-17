@@ -35,4 +35,3 @@ class Dataset:
             return torch.concat(features, 0), torch.concat(targets, 0)
         else:
             return features[0].unsqueeze(0), targets[0].unsqueeze(0)
-
