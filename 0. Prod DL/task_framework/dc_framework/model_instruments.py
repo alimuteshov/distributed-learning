@@ -5,6 +5,7 @@ import torch
 
 from pathlib import Path
 from typing import Dict
+logging.basicConfig(level = logging.INFO)
 
 from dc_framework.data_preparation import Dataset
 
@@ -16,10 +17,11 @@ def init(model: torch.nn.Module, criterion: torch.nn.Module):
 
 
 class DCFramework:
-    def __init__(self, model: torch.nn.Module, criterion: torch.nn.Module, lr=1e-3):
-        self.model = model
+    def __init__(self, model: torch.nn.Module, criterion: torch.nn.Module, device = torch.device("cpu"), lr=1e-3):
+        self.model = model.to(device)
         self.optimizer = torch.optim.SGD(model.parameters(), lr=lr)
         self.criterion = criterion
+        self.device = device
 
     def forward(self, feature, target):
         try:
@@ -39,14 +41,27 @@ class DCFramework:
         }
 
     def train(self, train_data: Dict[str, np.array], batch_size: int = 1):
-        train_data = Dataset(train_data)
+        train_data = Dataset(train_data, self.device)
         train_dataloader = train_data.get_dataloader(batch_size=batch_size)
-        
+
+        logging.info('Training...')
         for batch in train_dataloader:
             output = self.forward(*batch)
             loss = output["loss"]
+            logging.info(f'Training loss = {loss}')
             loss.backward()
             self.optimizer.step()
+
+    def validation(self, val_data: Dict[str, np.array], batch_size: int = 1):
+        val_data = Dataset(val_data, self.device)
+        val_dataloader = val_data.get_dataloader(batch_size=batch_size)
+        with torch.no_grad():
+            logging.info(f'Validation...')
+            for batch in val_dataloader:
+                output = self.forward(*batch)
+                loss = output["loss"]
+                logging.info(f'Validation loss = {loss}')
+
 
     def save(self, path: Path):
         state = {
@@ -54,3 +69,11 @@ class DCFramework:
             "optimizer": self.optimizer.state_dict(),
         }
         torch.save(state, path)
+
+    def load(self, path: Path):
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+
+
+
